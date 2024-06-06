@@ -1,3 +1,2 @@
-from .buffer import ReplayBuffer, buffer_from_gym
-
-__all__ = ["ReplayBuffer", "buffer_from_gym"]
+from .buffer import ReplayBuffer, make_buffer
+__all__ = ["ReplayBuffer", "make_buffer"]

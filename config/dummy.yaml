@@ -1,9 +1,0 @@
-data_name: 'dummy'
-method:
-  name: 'cql'
-
-train_timesteps: 100000
-eval_freq: 1000
-
-batch_size: 16
-device: 'cuda'

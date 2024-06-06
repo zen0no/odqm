@@ -1,6 +1,6 @@
-import d4rl as d4rl
+# import d4rl as d4rl
 
 from odqm import data
-from odqm.bwd import BellmanWassersteinDistance
+from odqm import metrics
 
-__all__ = ["BellmanWassersteinDistance", "data"]
+__all__ = ["metrics", "data"]

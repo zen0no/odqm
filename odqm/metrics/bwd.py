@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from odqm.network import MLP
+from odqm.metrics import BaseMetric
 
 class _Potential(nn.Module):
     def __init__(self, state_dim: int, action_dim: int, hidden_dim=100, **kwargs):
@@ -23,7 +24,7 @@ class _Potential(nn.Module):
         return -torch.abs(fc)
 
 
-class BellmanWassersteinDistance(nn.Module):
+class BellmanWassersteinDistance(BaseMetric):
     def __init__(
         self,
         state_dim: int,
@@ -31,8 +32,7 @@ class BellmanWassersteinDistance(nn.Module):
         qnet_path: str = None,
         max_action: torch.float32 = 1,
         eps: torch.float32 = 1,
-        W: torch.float32 = 1,
-        device: str = None,
+        w: torch.float32 = 1,
         **kwargs
     ):
         """
@@ -46,19 +46,10 @@ class BellmanWassersteinDistance(nn.Module):
             critic (nn.Module): Value function for corresponding policy, pretrained on target dataset
             max_action (torch.float32, optional): Maximum of target dataset action distribution. Defaults to 1.
             eps (torch.float32, optional): Coefficient for regularization. Defaults to 1.
-            W (torch.float32, optional): Coefficient for dual potentials. Defaults to 1.
-            device (str, optional): Device, where distance will be trained. Defaults to None.
+            w (torch.float32, optional): Coefficient for dual potentials. Defaults to 1.
         """
-        if device is not None:
-            self.device = torch.device(device)
-        else:
-            self.device = (
-                torch.device("cuda")
-                if torch.cuda.is_available()
-                else torch.device("cpu")
-            )
 
-        super().__init__()
+        super().__init__(**kwargs)
 
         self.p1 = _Potential(state_dim=state_dim, action_dim=action_dim).to(self.device)
         self.p2 = _Potential(state_dim=state_dim, action_dim=action_dim).to(self.device)
@@ -69,7 +60,7 @@ class BellmanWassersteinDistance(nn.Module):
         self.load_qnet(qnet_path)
 
         self.eps = eps
-        self.W = W
+        self.w = w
 
         self.max_action = max_action
         self.optimizer = torch.optim.Adam(self.parameters())
@@ -90,10 +81,9 @@ class BellmanWassersteinDistance(nn.Module):
             -self.eps
             * torch.exp(1 / self.eps * (p1_vr.flatten() + p2_v.flatten() + cost)).mean()
         )
-        loss = -(p1_vr.mean() + self.W * p2_v.mean()) + reg
+        loss = -(p1_vr.mean() + self.w * p2_v.mean()) + reg
 
         return loss
-
 
     def load_qnet(self, qnet_path):
         if qnet_path is not None:
@@ -102,27 +92,24 @@ class BellmanWassersteinDistance(nn.Module):
             print("Running dummy qnet")
             self.q_net = MLP(self.state_dim + self.action_dim, 1).to(self.device)
 
-    def train(self, data):
+    def train_metric(self, data):
         loss = self(data)
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        
-
-    def estimate(self, data):
+    def eval_metric(self, data):
         state, action, reward = data['state'], data['action'], data['reward']
         with torch.no_grad():
             action_random = torch.rand_like(action).clamp(-self.max_action, self.max_action)
 
-            p1_vr = self.p1(state, action)
+            p1_vr = self.p1(state, action_random)
             p2_v = self.p2(state, action)
             distance = p1_vr + p2_v
 
-
             output = {
-                'bwd': distance.mean(),
-                'reward': reward.mean(),
+                'bwd': distance.mean().item(),
+                'reward': reward.mean().item(),
             }
             return output

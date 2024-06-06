@@ -1,0 +1,10 @@
+data:
+  name: 'sample_data'
+method:
+  name: 'bwd'
+  train_steps: 100000
+  eval_freq: 1000
+  batch_size: 16
+  device: 'cuda'
+  seed: 42
+
